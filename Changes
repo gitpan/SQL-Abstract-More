@@ -1,0 +1,5 @@
+Revision history for SQL-Abstract-More
+
+0.01    08.07.2011
+        First release (code extracted and refactored from DBIx::DataModel)
+
