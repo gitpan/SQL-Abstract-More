@@ -1,5 +1,8 @@
 Revision history for SQL-Abstract-More
 
-0.01    08.07.2011
+0.02    03.08.2011
+        Fixed stupid pod test
+
+0.01    31.07.2011
         First release (code extracted and refactored from DBIx::DataModel)
 

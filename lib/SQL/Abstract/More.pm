@@ -12,7 +12,7 @@ use Scalar::Util      qw/reftype/;
 use Carp;
 use namespace::autoclean;
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 # builtin methods for "Limit-Offset" dialects
 my %limit_offset_dialects = (
@@ -886,7 +886,7 @@ produces
 
   {a => 12, b => [-and => {">" => 34}, {"<" => 56}], c => 78});
 
-=head TODO
+=head1 TODO
 
 Future versions may include some of these features :
 
@@ -942,14 +942,6 @@ new constructor option
 This would provide a default values for the C<-for> parameter.
 
 =back
-
-
-=end TODO
-
-=cut
-
-
-
 
 =head1 AUTHOR
 

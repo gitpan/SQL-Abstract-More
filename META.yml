@@ -17,11 +17,11 @@ name: SQL-Abstract-More
 provides:
   SQL::Abstract::More:
     file: lib/SQL/Abstract/More.pm
-    version: 0.01
+    version: 0.02
 requires:
   Params::Validate: 0
   SQL::Abstract: 1.61
   namespace::autoclean: 0
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.01
+version: 0.02
