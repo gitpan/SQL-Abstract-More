@@ -10,6 +10,7 @@ my $builder = Module::Build->new(
     requires => {
         'SQL::Abstract'        => 1.61,
         'Params::Validate'     => 0,
+        'parent'               => 0,
         'namespace::autoclean' => 0,
      },
     build_requires => {

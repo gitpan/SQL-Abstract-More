@@ -12,7 +12,7 @@ use Scalar::Util      qw/reftype/;
 use Carp;
 use namespace::autoclean;
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 # builtin methods for "Limit-Offset" dialects
 my %limit_offset_dialects = (

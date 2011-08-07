@@ -1,5 +1,8 @@
 Revision history for SQL-Abstract-More
 
+0.03    07.08.2011
+        added dependency on 'parent.pm' in Build.PL
+
 0.02    03.08.2011
         Fixed stupid pod test
 
