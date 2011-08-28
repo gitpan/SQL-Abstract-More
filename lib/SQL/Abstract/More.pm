@@ -12,7 +12,7 @@ use Scalar::Util      qw/reftype/;
 use Carp;
 use namespace::autoclean;
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 # builtin methods for "Limit-Offset" dialects
 my %limit_offset_dialects = (
@@ -577,7 +577,7 @@ need another implementation for LIMIT-OFFSET, you could write
 =head2 select
 
   # positional parameters, directly passed to the parent class
-  my ($sql, @bind) = $sqla->select($columns, $table, $where, $order);
+  my ($sql, @bind) = $sqla->select($table, $columns, $where, $order);
 
   # named parameters, handled in this class 
   my ($sql, @bind) = $sqla->select(

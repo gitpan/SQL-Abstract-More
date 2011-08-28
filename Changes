@@ -1,5 +1,8 @@
 Revision history for SQL-Abstract-More
 
+0.04    28.08.2011
+        doc fix, thanks to Terrence Brannon
+
 0.03    07.08.2011
         added dependency on 'parent.pm' in Build.PL
 
