@@ -1,5 +1,9 @@
 Revision history for SQL-Abstract-More
 
+1.00    16.12.2011
+        added methods insert(), update(), delete()
+        force arg to _where_field_IN to be an unblessed arrayref
+
 0.06    13.12.2011
         new parameter 'max_members_IN'
 
