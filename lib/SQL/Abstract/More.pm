@@ -12,7 +12,7 @@ use Scalar::Util      qw/reftype/;
 use Carp;
 use namespace::autoclean;
 
-our $VERSION = '1.00';
+our $VERSION = '1.01';
 
 # builtin methods for "Limit-Offset" dialects
 my %limit_offset_dialects = (
@@ -74,7 +74,9 @@ my %sql_dialects = (
                 max_members_IN   => 255                      },
  MySQL_old => { limit_offset     => "LimitXY"                },
  Oracle    => { limit_offset     => "RowNum",
-                max_members_IN   => 999                      },
+                max_members_IN   => 999,
+                table_alias      => '%s %s',
+                column_alias     => '%s %s',                 },
 );
 
 # specification of parameters accepted by select, insert, update, delete
@@ -495,11 +497,6 @@ sub _single_join {
 
 sub _where_field_IN {
   my ($self, $k, $op, $vals) = @_;
-
-  # hack : force an arrayref, because SQLA won't take a blessed arrayref.
-  { no warnings 'uninitialized';
-    $vals = [@$vals] if reftype $vals eq 'ARRAY' && ref $vals ne 'ARRAY';
-  }
 
   my $max_members_IN = $self->{max_members_IN};
   if ($max_members_IN && reftype $vals eq 'ARRAY' 
@@ -1106,12 +1103,26 @@ Future versions may include some of these features :
 
 =item *
 
+maybe named parameters for insert/update/delete. These would not 
+be extremely useful; but for the sake of consistency it's probably
+worth implementing.
+
+=item *
+
 support for C<WITH> initial clauses, and C<WITH RECURSIVE>.
 
 =item *
 
 suport for Oracle-specific syntax for recursive queries
 (START_WITH, PRIOR, CONNECT_BY NOCYCLE, CONNECT SIBLINGS, etc.)
+
+=item *
+
+support for INSERT variants
+
+    INSERT .. DEFAULT VALUES
+    INSERT .. VALUES(), VALUES()
+    INSERT .. RETURNING
 
 =item *
 
@@ -1137,7 +1148,7 @@ new constructor option
 
   ->new(..., select_implicitly_for => $string, ...)
 
-This would provide a default value for the C<-for> parameter.
+This would provide a default values for the C<-for> parameter.
 
 =back
 
