@@ -7,7 +7,7 @@ use Test::More;
 
 use SQL::Abstract::Test import => [qw/is_same_sql_bind/];
 
-plan tests => 41;
+plan tests => 42;
 diag( "Testing SQL::Abstract::More $SQL::Abstract::More::VERSION, Perl $], $^X" );
 
 
@@ -339,6 +339,21 @@ is_same_sql_bind(
   [6 .. 10, 1 .. 5]
 );
 
+
+#----------------------------------------------------------------------
+# -in with objects
+#----------------------------------------------------------------------
+
+my $vals = bless [1, 2], 'Array::PseudoScalar'; # doesn't matter if not loaded
+
+($sql, @bind) = $sqla->where({foo => {-in     => $vals},
+                              bar => {-not_in => $vals}});
+
+is_same_sql_bind(
+  $sql, \@bind,
+  ' WHERE ( bar NOT IN ( ?, ? ) AND foo IN ( ?, ? ) )',
+  [1, 2, 1, 2],
+);
 
 
 #----------------------------------------------------------------------

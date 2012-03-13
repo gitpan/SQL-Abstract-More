@@ -8,11 +8,11 @@ use mro 'c3'; # implements next::method
 
 use Params::Validate  qw/validate SCALAR SCALARREF CODEREF ARRAYREF HASHREF
                                   UNDEF  BOOLEAN/;
-use Scalar::Util      qw/reftype/;
+use Scalar::Util      qw/reftype blessed/;
 use Carp;
 use namespace::autoclean;
 
-our $VERSION = '1.01';
+our $VERSION = '1.02';
 
 # builtin methods for "Limit-Offset" dialects
 my %limit_offset_dialects = (
@@ -514,6 +514,7 @@ sub _where_field_IN {
     return ($sql, @bind);
   }
   else {
+    $vals = [@$vals] if blessed $vals; # because SQLA dies on blessed arrayrefs
     return $self->next::method($k, $op, $vals);
   }
 }
