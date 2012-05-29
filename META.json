@@ -29,7 +29,7 @@
          "requires" : {
             "Params::Validate" : 0,
             "SQL::Abstract" : "1.61",
-            "namespace::autoclean" : 0,
+            "namespace::clean" : 0,
             "parent" : 0
          }
       }
@@ -37,7 +37,7 @@
    "provides" : {
       "SQL::Abstract::More" : {
          "file" : "lib/SQL/Abstract/More.pm",
-         "version" : "1.03"
+         "version" : "1.04"
       }
    },
    "release_status" : "stable",
@@ -46,5 +46,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "1.03"
+   "version" : "1.04"
 }

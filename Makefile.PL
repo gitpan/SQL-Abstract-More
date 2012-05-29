@@ -9,7 +9,7 @@ WriteMakefile
                    'SQL::Abstract' => '1.61',
                    'SQL::Abstract::Test' => 0,
                    'Test::More' => 0,
-                   'namespace::autoclean' => 0,
+                   'namespace::clean' => 0,
                    'parent' => 0
                  },
   'INSTALLDIRS' => 'site',
