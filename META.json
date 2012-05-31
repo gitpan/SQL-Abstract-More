@@ -27,6 +27,7 @@
       },
       "runtime" : {
          "requires" : {
+            "MRO::Compat" : 0,
             "Params::Validate" : 0,
             "SQL::Abstract" : "1.61",
             "namespace::clean" : 0,
@@ -37,7 +38,7 @@
    "provides" : {
       "SQL::Abstract::More" : {
          "file" : "lib/SQL/Abstract/More.pm",
-         "version" : "1.04"
+         "version" : "1.05"
       }
    },
    "release_status" : "stable",
@@ -46,5 +47,5 @@
          "http://dev.perl.org/licenses/"
       ]
    },
-   "version" : "1.04"
+   "version" : "1.05"
 }
