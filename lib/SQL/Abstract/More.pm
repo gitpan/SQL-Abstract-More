@@ -8,11 +8,12 @@ use mro 'c3'; # implements next::method
 
 use Params::Validate  qw/validate SCALAR SCALARREF CODEREF ARRAYREF HASHREF
                                   UNDEF  BOOLEAN/;
-use Scalar::Util      qw/reftype blessed/;
+use Scalar::Util      qw/blessed/;
+use Scalar::Does      qw/does/;
 use Carp;
 use namespace::clean;
 
-our $VERSION = '1.06';
+our $VERSION = '1.07';
 
 # builtin methods for "Limit-Offset" dialects
 my %limit_offset_dialects = (
@@ -296,7 +297,7 @@ sub insert {
     # if present, "-returning" may be a scalar, arrayref or hashref; the latter
     # is interpreted as .. RETURNING ... INTO ...
     if (my $returning = $args{-returning}) {
-      if ((reftype $returning || "") eq 'HASH') {
+      if (does($returning, 'HASH')) {
         my @keys = keys %$returning
           or croak "-returning => {} : the hash is empty";
         push @old_API_args, {returning => \@keys};
@@ -404,14 +405,13 @@ sub merge_conditions {
   my %merged;
 
   foreach my $cond (@_) {
-    my $reftype = reftype($cond) || '';
-    if    ($reftype eq 'HASH')  {
+    if    (does($cond, 'HASH'))  {
       foreach my $col (keys %$cond) {
         $merged{$col} = $merged{$col} ? [-and => $merged{$col}, $cond->{$col}]
                                       : $cond->{$col};
       }
     }
-    elsif ($reftype eq 'ARRAY') {
+    elsif (does($cond, 'ARRAY')) {
       $merged{-nest} = $merged{-nest} ? {-and => [$merged{-nest}, $cond]}
                                       : $cond;
     }
@@ -558,7 +558,7 @@ sub _where_field_IN {
   my ($self, $k, $op, $vals) = @_;
 
   my $max_members_IN = $self->{max_members_IN};
-  if ($max_members_IN && reftype $vals eq 'ARRAY' 
+  if ($max_members_IN && does($vals, 'ARRAY')
                       &&  @$vals > $max_members_IN) {
     my @vals = @$vals;
     my @slices;
@@ -1315,7 +1315,7 @@ L<http://search.cpan.org/dist/SQL-Abstract-More/>
 
 =head1 LICENSE AND COPYRIGHT
 
-Copyright 2011 Laurent Dami.
+Copyright 2011, 2012 Laurent Dami.
 
 This program is free software; you can redistribute it and/or modify it
 under the terms of either: the GNU General Public License as published
