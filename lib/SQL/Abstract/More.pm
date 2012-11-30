@@ -13,7 +13,7 @@ use Scalar::Does      qw/does/;
 use Carp;
 use namespace::clean;
 
-our $VERSION = '1.07';
+our $VERSION = '1.08';
 
 # builtin methods for "Limit-Offset" dialects
 my %limit_offset_dialects = (
@@ -157,10 +157,12 @@ sub new {
   ref $self->{limit_offset} or $self->_choose_LIMIT_OFFSET_dialect;
 
   # regex for parsing join specifications
-  my $join_ops = join '|', map quotemeta, keys %{$self->{join_syntax}};
+  my @join_ops = sort {length($b) <=> length($a) || $a cmp $b}
+                      keys %{$self->{join_syntax}};
+  my $joined_ops = join '|', map quotemeta, @join_ops;
   $self->{join_regex} = qr[
      ^              # initial anchor 
-     ($join_ops)?   # $1: join operator (i.e. '<=>', '=>', etc.))
+     ($joined_ops)? # $1: join operator (i.e. '<=>', '=>', etc.))
      ([[{])?        # $2: opening '[' or '{'
      (.*?)          # $3: content of brackets
      []}]?          # closing ']' or '}'
@@ -298,10 +300,10 @@ sub insert {
     # is interpreted as .. RETURNING ... INTO ...
     if (my $returning = $args{-returning}) {
       if (does($returning, 'HASH')) {
-        my @keys = keys %$returning
+        my @keys = sort keys %$returning
           or croak "-returning => {} : the hash is empty";
         push @old_API_args, {returning => \@keys};
-        $returning_into = [values %$returning];
+        $returning_into = [@{$returning}{@keys}];
       }
       else {
         push @old_API_args, {returning => $returning};
@@ -406,7 +408,7 @@ sub merge_conditions {
 
   foreach my $cond (@_) {
     if    (does($cond, 'HASH'))  {
-      foreach my $col (keys %$cond) {
+      foreach my $col (sort keys %$cond) {
         $merged{$col} = $merged{$col} ? [-and => $merged{$col}, $cond->{$col}]
                                       : $cond->{$col};
       }
@@ -509,7 +511,7 @@ sub _parse_join_spec {
     $right = "%2\$s.$right" unless $right =~ /\./;
 
     # add this pair into the list
-    push @conditions, $left, \"$cmp $right";
+    push @conditions, $left, {$cmp => {-ident => $right}};
   }
 
   # list becomes an arrayref or hashref (for SQLA->where())
@@ -540,7 +542,7 @@ sub _single_join {
 
   # build result and return
   my %result = (sql => $sql, bind => \@bind);
-  $result{name}    = ($self->{join_assoc_right} ? $left : $right)->{name};
+  $result{name} = ($self->{join_assoc_right} ? $left : $right)->{name};
   $result{aliased_tables} = $left->{aliased_tables};
   foreach my $alias (keys %{$right->{aliased_tables}}) {
     $result{aliased_tables}{$alias} = $right->{aliased_tables}{$alias};
@@ -1181,8 +1183,8 @@ C<operator> and  C<condition>, like this :
 
   {
     operator  => '<=>',
-    condition => { '%1$s.ab' => \'= %2$s.cd',
-                   '%1$s.ef' => \'= Table2.gh'}
+    condition => { '%1$s.ab' => {'=' => {-ident => '%2$s.cd'}},
+                   '%1$s.ef' => {'=' => {-ident => 'Table2.gh'}}},
   }
 
 The C<operator> is a key into the C<join_syntax> table; the associated
@@ -1191,15 +1193,13 @@ right operands, and the join condition.  The C<condition> is a
 structure suitable for being passed as argument to
 L<SQL::Abstract/where>.  Places where the names of left/right tables
 (or their aliases) are expected should be expressed as sprintf
-placeholders, i.e.  respectively C<%1$s> and C<%2$s>.  Beware that the
-right-hand side of the condition should most likely B<not> belong to
-the C<@bind> list, so in order to prevent that you need to prepend a
-backslash in front of strings on the right-hand side ... but then you
-also need to supply the '=' comparison operator.
+placeholders, i.e.  respectively C<%1$s> and C<%2$s>. In most cases
+the right-hand side of the condition should B<not> belong to
+the C<@bind> list, so this is why we need to use the C<-ident> operator
+from L<SQL::Abstract>.
 
-Hashrefs for join specifications 
-can be passed directly as arguments,
-instead of the simple string representation.
+Hashrefs for join specifications as shown above can be passed directly
+as arguments, instead of the simple string representation.
 
 =head2 merge_conditions
 
