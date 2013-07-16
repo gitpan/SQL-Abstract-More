@@ -14,7 +14,7 @@ use Scalar::Does      qw/does/;
 use Carp;
 use namespace::clean;
 
-our $VERSION = '1.15';
+our $VERSION = '1.16';
 
 # builtin methods for "Limit-Offset" dialects
 my %limit_offset_dialects = (
@@ -220,10 +220,8 @@ sub select {
     }
   }
 
-  # -order_by : translate +/- prefixes into SQL ASC/DESC; see _order_by()
-
-  # generate initial ($sql, @bind)
-  my @old_API_args = @args{qw/-from -columns -where -order_by/};
+  # generate initial ($sql, @bind), without -order_by (will be handled later)
+  my @old_API_args = @args{qw/-from -columns -where/}; #
   my ($sql, @bind) = $self->next::method(@old_API_args);
   unshift @bind, @{$join_info->{bind}} if $join_info;
 
@@ -238,8 +236,8 @@ sub select {
       $sub_args{$_} ||= $args{$_} for qw/-columns -from/;
       my ($sql1, @bind1) = $self->select(%sub_args);
       (my $sql_op = uc($set_op)) =~ s/_/ /g;
-      $sql =~ s/(ORDER BY|$)/ $sql_op $sql1 $1/;
-       push @bind, @bind1;
+      $sql .= " $sql_op $sql1";
+      push @bind, @bind1;
     }
   }
 
@@ -253,7 +251,30 @@ sub select {
       $sql_grp .= " $sql_having";
       push @bind, @bind_having;
     }
-    $sql =~ s[ORDER BY|$][$sql_grp $&]i;
+    $sql .= $sql_grp;
+  }
+
+  # add ORDER BY if needed
+  if (my $order = $args{-order_by}) {
+
+    # force scalar into an arrayref
+    $order = [$order] if not ref $order;
+
+    # restructure array data
+    if (ref $order eq 'ARRAY') {
+      my @clone = @$order;      # because we will modify items 
+
+      # '-' and '+' prefixes are translated into {-desc/asc => } hashrefs
+      foreach my $item (@clone) {
+        next if !$item or ref $item;
+        $item =~ s/^-//  and $item = {-desc => $item} and next;
+        $item =~ s/^\+// and $item = {-asc  => $item};
+      }
+      $order = \@clone;
+    }
+
+    my $sql_order = $self->where(undef, $order);
+    $sql .= $sql_order;
   }
 
   # add LIMIT/OFFSET if needed
@@ -324,7 +345,6 @@ sub insert {
   return ($sql, @bind);
 }
 
-
 sub update {
   my $self = shift;
 
@@ -341,8 +361,6 @@ sub update {
   return $self->_overridden_update(@old_API_args);
 }
 
-
-
 sub delete {
   my $self = shift;
 
@@ -357,8 +375,6 @@ sub delete {
 
   return $self->next::method(@old_API_args);
 }
-
-
 
 #----------------------------------------------------------------------
 # other public methods
@@ -479,9 +495,6 @@ sub is_bind_value_with_type {
   return ();
 }
 
-
-
-
 #----------------------------------------------------------------------
 # private utility methods for 'join'
 #----------------------------------------------------------------------
@@ -500,7 +513,6 @@ sub _parse_table {
     aliased_tables => {$alias ? ($alias => $table) : ()},
    };
 }
-
 
 sub _parse_join_spec {
   my ($self, $join_spec) = @_;
@@ -569,34 +581,6 @@ sub _single_join {
 
   return \%result;
 }
-
-
-#----------------------------------------------------------------------
-# override of parent's "_order_by"
-#----------------------------------------------------------------------
-
-sub _order_by {
-  my ($self, $order) = @_;
-
-  # force scalar into an arrayref
-  $order = [$order] if not ref $order;
-
-  if (ref $order eq 'ARRAY') {
-    my @clone = @$order; # because we will modify items 
-
-    # '-' and '+' prefixes are translated into {-desc/asc => } hashrefs
-    foreach my $item (@clone) {
-      next if !$item or ref $item;
-      $item =~ s/^-//  and $item = {-desc => $item} and next;
-      $item =~ s/^\+// and $item = {-asc  => $item};
-    }
-    $order = \@clone;
-  }
-
-  return $self->next::method($order);
-}
-
-
 
 
 #----------------------------------------------------------------------
@@ -671,8 +655,6 @@ sub _assert_no_bindtype_columns {
            . 'with ...->new(bindtype => "columns")';
 }
 
-
-
 sub _insert_values {
   # unfortunately, we can't just override the ARRAYREF part, so the whole
   # parent method is copied here
@@ -731,8 +713,6 @@ sub _insert_values {
   my $sql = $self->_sqlcase('values')." ( ".CORE::join(", ", @values)." )";
   return ($sql, @all_bind);
 }
-
-
 
 sub _overridden_update {
   # unfortunately, we can't just override the ARRAYREF part, so the whole
@@ -808,9 +788,6 @@ sub _overridden_update {
 
   return wantarray ? ($sql, @all_bind) : $sql;
 }
-
-
-
 
 #----------------------------------------------------------------------
 # method creations through closures
@@ -1369,11 +1346,16 @@ Generates C<($sql, @bind)> for a LIMIT-OFFSET clause.
 
 =head2 join
 
-  ($sql, @bind) = $sqla->join(
+  my $join_info = $sqla->join(
     <table0> <join_1> <table_1> ... <join_n> <table_n>
   );
+  my $sth = $dbh->prepare($join_info->{sql});
+  $sth->execute(@{$join_info->{bind}})
+  while (my ($alias, $aliased) = each %{$join_info->{aliased_tables}}) {
+    say "$alias is an alias for table $aliased";
+  }
 
-Generates C<($sql, @bind)> for a JOIN clause, taking as input
+Generates join information for a JOIN clause, taking as input
 a collection of joined tables with their join conditions.
 The following example gives an idea of the available syntax :
 
@@ -1393,7 +1375,7 @@ This will generate
 More precisely, the arguments to C<join()> should be a list
 containing an odd number of elements, where the odd positions
 are I<table specifications> and the even positions are
-I<join specifications>. 
+I<join specifications>.
 
 =head3 Table specifications
 
@@ -1473,6 +1455,28 @@ from L<SQL::Abstract>.
 
 Hashrefs for join specifications as shown above can be passed directly
 as arguments, instead of the simple string representation.
+
+=head3 Return value
+
+The structure returned by C<join()> is a hashref with 
+the following keys :
+
+=over
+
+=item sql
+
+a string containing the generated SQL
+
+=item bind
+
+an arrayref of bind values
+
+=item aliased_tables
+
+a hashref where keys are alias names and values are names of aliased tables.
+
+=back
+
 
 =head2 merge_conditions
 
@@ -1599,7 +1603,7 @@ support for C<WITH> initial clauses, and C<WITH RECURSIVE>.
 
 =item *
 
-suport for Oracle-specific syntax for recursive queries
+support for Oracle-specific syntax for recursive queries
 (START_WITH, PRIOR, CONNECT_BY NOCYCLE, CONNECT SIBLINGS, etc.)
 
 =item *
