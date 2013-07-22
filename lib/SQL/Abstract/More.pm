@@ -14,7 +14,7 @@ use Scalar::Does      qw/does/;
 use Carp;
 use namespace::clean;
 
-our $VERSION = '1.16';
+our $VERSION = '1.17';
 
 # builtin methods for "Limit-Offset" dialects
 my %limit_offset_dialects = (
@@ -43,7 +43,7 @@ my %limit_offset_dialects = (
 
     no warnings 'uninitialized'; # in case $limit or $offset is undef
     # row numbers start at 1
-    return $sql, $offset + $limit + 1, $offset + 1;
+    return $sql, $offset + $limit, $offset + 1;
   },
  );
 
