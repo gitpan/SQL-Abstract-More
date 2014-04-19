@@ -14,7 +14,7 @@ use Scalar::Does      qw/does/;
 use Carp;
 use namespace::clean;
 
-our $VERSION = '1.19';
+our $VERSION = '1.20';
 
 # builtin methods for "Limit-Offset" dialects
 my %limit_offset_dialects = (
@@ -114,10 +114,14 @@ my %params_for_update = (
   -table        => {type => SCALAR},
   -set          => {type => HASHREF},
   -where        => {type => SCALAR|ARRAYREF|HASHREF, optional => 1},
+  -order_by     => {type => SCALAR|ARRAYREF|HASHREF, optional => 1},
+  -limit        => {type => SCALAR,                  optional => 1},
 );
 my %params_for_delete = (
   -from         => {type => SCALAR},
   -where        => {type => SCALAR|ARRAYREF|HASHREF, optional => 1},
+  -order_by     => {type => SCALAR|ARRAYREF|HASHREF, optional => 1},
+  -limit        => {type => SCALAR,                  optional => 1},
 );
 
 
@@ -278,7 +282,7 @@ sub select {
   }
 
   # add LIMIT/OFFSET if needed
-  if ($args{-limit}) {
+  if (defined $args{-limit}) {
     my ($limit_sql, @limit_bind) 
       = $self->limit_offset(@args{qw/-limit -offset/});
     $sql = $limit_sql =~ /%s/ ? sprintf $limit_sql, $sql
@@ -349,31 +353,62 @@ sub update {
   my $self = shift;
 
   my @old_API_args;
+  my %args;
   if (&_called_with_named_args) {
-    my %args = validate(@_, \%params_for_update);
+    %args = validate(@_, \%params_for_update);
     @old_API_args = @args{qw/-table -set -where/};
   }
   else {
     @old_API_args = @_;
   }
 
-  # return $self->next::method(@old_API_args);
-  return $self->_overridden_update(@old_API_args);
+  # call clone of parent method
+  my ($sql, @bind) = $self->_overridden_update(@old_API_args);
+
+  # maybe need to handle additional args
+  $self->_handle_additional_args_for_update_delete(\%args, \$sql, \@bind);
+
+  return ($sql, @bind);
 }
+
+
+sub _handle_additional_args_for_update_delete {
+  my ($self, $args, $sql_ref, $bind_ref) = @_;
+
+  if (defined $args->{-order_by}) {
+    my ($sql_ob, @bind_ob) = $self->_order_by($args->{-order_by});
+    $$sql_ref .= $sql_ob;
+    push @$bind_ref, @bind_ob;
+  }
+  if (defined $args->{-limit}) {
+    # can't call $self->limit_offset(..) because there shouldn't be any offset
+    $$sql_ref .= $self->_sqlcase(' limit ?');
+    push @$bind_ref, $args->{-limit};
+  }
+}
+
+
 
 sub delete {
   my $self = shift;
 
   my @old_API_args;
+  my %args;
   if (&_called_with_named_args) {
-    my %args = validate(@_, \%params_for_delete);
+    %args = validate(@_, \%params_for_delete);
     @old_API_args = @args{qw/-from -where/};
   }
   else {
     @old_API_args = @_;
   }
 
-  return $self->next::method(@old_API_args);
+  # call parent method
+  my ($sql, @bind) = $self->next::method(@old_API_args);
+
+  # maybe need to handle additional args
+  $self->_handle_additional_args_for_update_delete(\%args, \$sql, \@bind);
+
+  return ($sql, @bind);
 }
 
 #----------------------------------------------------------------------
@@ -846,7 +881,7 @@ SQL::Abstract::More - extension of SQL::Abstract with more constructs and more f
 
 =head1 DESCRIPTION
 
-Generates SQL from Perl datastructures.  This is a subclass of
+Generates SQL from Perl data structures.  This is a subclass of
 L<SQL::Abstract>, fully compatible with the parent class, but with
 some additions :
 
@@ -947,13 +982,13 @@ class (see L<SQL::Abstract/new>), plus the following :
 
 =item table_alias
 
-A L<sprintf> format description for generating table aliasing clauses.
+A C<sprintf> format description for generating table aliasing clauses.
 The default is C<%s AS %s>.
 Can also be supplied as a method coderef (see L</"Overriding methods">).
 
 =item column_alias
 
-A L<sprintf> format description for generating column aliasing clauses.
+A C<sprintf> format description for generating column aliasing clauses.
 The default is C<%s AS %s>.
 Can also be supplied as a method coderef.
 
@@ -961,7 +996,7 @@ Can also be supplied as a method coderef.
 
 Name of a "limit-offset dialect", which can be one of
 C<LimitOffset>, C<LimitXY>, C<LimitYX> or C<RowNum>; 
-see L<SQL::Abstract::Limit> for an explation of those dialects.
+see L<SQL::Abstract::Limit> for an explanation of those dialects.
 Here, unlike the L<SQL::Abstract::Limit> implementation,
 limit and offset values are treated as regular values,
 with placeholders '?' in the SQL; values are postponed to the
@@ -970,16 +1005,16 @@ C<@bind> list.
 The argument can also be a coderef (see below
 L</"Overriding methods">). That coderef takes C<$self, $limit, $offset>
 as arguments, and should return C<($sql, @bind)>. If C<$sql> contains
-C<%s>, it is treated as a L<sprintf> format string, where the original
+C<%s>, it is treated as a C<sprintf> format string, where the original
 SQL is injected into C<%s>.
 
 
 =item join_syntax
 
-A hashref where keys are abreviations for join
+A hashref where keys are abbreviations for join
 operators to be used in the L</join> method, and 
 values are associated SQL clauses with placeholders
-in L<sprintf> format. The default is described
+in C<sprintf> format. The default is described
 below under the L</join> method.
 
 =item join_assoc_right
@@ -1290,7 +1325,7 @@ a scalar or an arrayref, it is passed directly to the parent method
 a hashref, it is interpreted as a SQL clause "RETURNING .. INTO ..",
 as required in particular by Oracle. Hash keys are field names, and
 hash values are references to variables that will receive the
-results. Then it is the client code's responsability
+results. Then it is the client code's responsibility
 to use L<DBD::Oracle/bind_param_inout> for binding the variables
 and retrieving the results, but the L</bind_params> method in the
 present module is there for help. Example:
@@ -1314,17 +1349,22 @@ present module is there for help. Example:
   # positional parameters, directly passed to the parent class
   ($sql, @bind) = $sqla->update($table, \%fieldvals, \%where);
 
-  # named parameters, handled in this class 
+  # named parameters, handled in this class
   ($sql, @bind) = $sqla->update(
-    -table => $table,
-    -set   => {col => $val, ...},
-    -where => \%conditions,
+    -table    => $table,
+    -set      => {col => $val, ...},
+    -where    => \%conditions,
+    -order_by => \@order,
+    -limit    => $limit,
   );
 
 This works in the same spirit as the L</insert> method above.
-Named parameters to the C<update()> method are just syntactic sugar
-for better readability of the client's code; they are passed verbatim
-to the parent method.
+Positional parameters are supported for backwards compatibility
+with the old API; but named parameters should be preferred because
+they improve the readability of the client's code.
+
+Few DBMS would support parameters C<-order_by> and C<-limit>, but
+MySQL does -- see L<http://dev.mysql.com/doc/refman/5.6/en/update.html>.
 
 
 =head2 delete
@@ -1334,14 +1374,19 @@ to the parent method.
 
   # named parameters, handled in this class 
   ($sql, @bind) = $sqla->delete (
-    -from  => $table
-    -where => \%conditions,
+    -from     => $table
+    -where    => \%conditions,
+    -order_by => \@order,
+    -limit    => $limit,
+
   );
 
-Named parameters to the C<delete()> method are just syntactic sugar
-for better readability of the client's code; they are passed verbatim
-to the parent method.
+Positional parameters are supported for backwards compatibility
+with the old API; but named parameters should be preferred because
+they improve the readability of the client's code.
 
+Few DBMS would support parameters C<-order_by> and C<-limit>, but
+MySQL does -- see L<http://dev.mysql.com/doc/refman/5.6/en/update.html>.
 
 =head2 table_alias
 
@@ -1473,11 +1518,11 @@ C<operator> and C<condition>, like this :
   }
 
 The C<operator> is a key into the C<join_syntax> table; the associated
-value is a sprinf format string, with placeholders for the left and
+value is a C<sprintf> format string, with placeholders for the left and
 right operands, and the join condition.  The C<condition> is a
 structure suitable for being passed as argument to
 L<SQL::Abstract/where>.  Places where the names of left/right tables
-(or their aliases) are expected should be expressed as sprintf
+(or their aliases) are expected should be expressed as C<sprintf>
 placeholders, i.e.  respectively C<%1$s> and C<%2$s>. Usually the
 right-hand side of the condition refers to a column of the right
 table; in such case it should B<not> belong to the C<@bind> list, so
@@ -1576,7 +1621,7 @@ statements of shape C<"INSERT ... RETURNING ... INTO ...">
 (see L</insert> method above), or as a way to indicate specific
 datatypes to the database driver.
 
-==head2 is_bind_value_with_type
+=head2 is_bind_value_with_type
 
   my ($method, @args) = $sqla->is_bind_value_with_type($value);
 
